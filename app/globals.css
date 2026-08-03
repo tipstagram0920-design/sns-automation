@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #0b0c10;
+  --panel: #16181d;
+  --panel-2: #1e2127;
+  --border: #2a2e37;
+  --text: #e7e9ee;
+  --muted: #9aa1ad;
+  --accent: #6366f1;
+  --accent-hover: #4f52d6;
+  --danger: #ef4444;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Apple SD Gothic Neo",
+    "Malgun Gothic", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: inherit;
+}

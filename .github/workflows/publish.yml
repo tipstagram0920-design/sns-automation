@@ -1,0 +1,34 @@
+name: 예약 발행 워커
+
+on:
+  schedule:
+    # 5분마다 실행 (GitHub Actions 최소 간격). 예약 시각 지난 건 이때 발행됨.
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {} # 수동 실행 버튼
+
+# 동시에 두 번 돌지 않게 (중복 발행 방지)
+concurrency:
+  group: publish-worker
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30 # 큰 영상 업로드 여유 (Vercel 60초 제한과 다름)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+      - run: npm ci
+      - name: 발행 워커 실행
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TOKEN_ENCRYPTION_KEY: ${{ secrets.TOKEN_ENCRYPTION_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+        run: node worker/publish.mjs
