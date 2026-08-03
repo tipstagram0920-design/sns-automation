@@ -19,7 +19,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Node 22: 전역 WebSocket 내장 (Supabase 클라이언트 필요). 20 은 없어서 크래시.
+          node-version: "22"
           cache: "npm"
       - run: npm ci
       - name: 발행 워커 실행
