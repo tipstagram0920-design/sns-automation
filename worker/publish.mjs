@@ -206,6 +206,43 @@ async function publishInstagram(target, videoUrl, conn, existingContainerId) {
   return { externalPostId: mediaId, status: "published", containerId };
 }
 
+// ───────── 인스타: API 발행 대신 "메일 수동 발행" ─────────
+// 예약 시각에 영상 다운로드 링크 + 캡션을 내 메일로 보냄 → 폰에서 직접 업로드(음원 자유).
+async function emailInstagram(target, videoUrl) {
+  const to = env("ALLOWED_EMAIL");
+  const apiKey = env("RESEND_API_KEY");
+  const caption = target.caption || "";
+  const shortForSubject = caption.replace(/\n/g, " ").slice(0, 40);
+
+  const html = `
+    <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
+      <h2>📸 인스타 업로드 예약 도착</h2>
+      <p style="color:#666">폰에서 아래 영상을 저장하고, 캡션을 복사해 인스타에 올려주세요. (트렌딩 음원은 앱에서 자유롭게 추가)</p>
+      <p><a href="${videoUrl}" style="display:inline-block;background:#6366f1;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600">⬇️ 영상 다운로드</a></p>
+      <p style="font-size:12px;color:#999">링크는 7일간 유효합니다.</p>
+      <h3>캡션 (복사해서 붙여넣기)</h3>
+      <pre style="white-space:pre-wrap;background:#f4f4f5;padding:14px;border-radius:10px;font-family:inherit;font-size:14px">${escapeHtml(caption)}</pre>
+    </div>`;
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      from: process.env.RESEND_FROM || "onboarding@resend.dev",
+      to: [to],
+      subject: `📸 인스타 예약: ${shortForSubject || "영상"}`,
+      html,
+    }),
+  });
+  const d = await res.json();
+  if (!res.ok) throw new Error(d.message || d.name || `메일 발송 실패 (${res.status})`);
+  return { externalPostId: `email:${d.id || "sent"}`, status: "published" };
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 // ───────── 틱톡 (SELF_ONLY) ─────────
 async function publishTikTok(target, videoUrl, conn) {
   const r = await fetch("https://open.tiktokapis.com/v2/post/publish/video/init/", {
@@ -230,20 +267,27 @@ async function runOne(target) {
   if (!locked || locked.length === 0) return { skipped: "locked" };
 
   try {
-    const { data: conn } = await admin
-      .from("platform_connections").select("*")
-      .eq("user_id", target.user_id).eq("platform", target.platform).single();
-    if (!conn) throw new Error(`${target.platform} 계정 미연결`);
-    const live = await getLiveConnection(conn);
-
-    const { data: signed, error: se } = await admin.storage.from("videos").createSignedUrl(target.posts.storage_path, 60 * 60);
-    if (se || !signed) throw new Error("서명 URL 생성 실패");
-    const videoUrl = signed.signedUrl;
-
     let result;
-    if (target.platform === "youtube") result = await publishYouTube(target, videoUrl, live);
-    else if (target.platform === "instagram") result = await publishInstagram(target, videoUrl, live, target.ig_container_id);
-    else result = await publishTikTok(target, videoUrl, live);
+    if (target.platform === "instagram") {
+      // 메일 수동 발행: 계정 연결 불필요. 7일짜리 다운로드 링크로 메일 발송.
+      const { data: signed, error: se } = await admin.storage
+        .from("videos")
+        .createSignedUrl(target.posts.storage_path, 60 * 60 * 24 * 7, { download: true });
+      if (se || !signed) throw new Error("서명 URL 생성 실패");
+      result = await emailInstagram(target, signed.signedUrl);
+    } else {
+      const { data: conn } = await admin
+        .from("platform_connections").select("*")
+        .eq("user_id", target.user_id).eq("platform", target.platform).single();
+      if (!conn) throw new Error(`${target.platform} 계정 미연결`);
+      const live = await getLiveConnection(conn);
+      const { data: signed, error: se } = await admin.storage.from("videos").createSignedUrl(target.posts.storage_path, 60 * 60);
+      if (se || !signed) throw new Error("서명 URL 생성 실패");
+      const videoUrl = signed.signedUrl;
+      result = target.platform === "youtube"
+        ? await publishYouTube(target, videoUrl, live)
+        : await publishTikTok(target, videoUrl, live);
+    }
 
     await admin.from("post_targets").update({
       status: result.status,

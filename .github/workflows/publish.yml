@@ -32,4 +32,7 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          # 인스타 메일 수동 발행
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALLOWED_EMAIL: ${{ secrets.ALLOWED_EMAIL }}
         run: node worker/publish.mjs

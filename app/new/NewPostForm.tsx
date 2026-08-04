@@ -328,6 +328,16 @@ export default function NewPostForm({
                     onChange={(e) => update(p, { enabled: e.target.checked })}
                   />
                   {PLATFORM_EMOJI[p]} {PLATFORM_LABEL[p]}
+                  {p === "instagram" && (
+                    <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted)" }}>
+                      · 메일로 받아 폰에서 직접 업로드
+                    </span>
+                  )}
+                  {p === "youtube" && (
+                    <span style={{ fontSize: 11, fontWeight: 400, color: "var(--muted)" }}>
+                      · 자동 발행
+                    </span>
+                  )}
                 </label>
 
                 {f.enabled && (
