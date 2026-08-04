@@ -16,6 +16,10 @@ export async function sendQueueEmail(count: number): Promise<void> {
     port: 465,
     secure: true,
     auth: { user, pass },
+    // Vercel 등에서 SMTP 가 막혀도 예약 자체는 멈추지 않도록 빠르게 실패
+    connectionTimeout: 8000,
+    greetingTimeout: 8000,
+    socketTimeout: 8000,
   });
 
   await transport.sendMail({
