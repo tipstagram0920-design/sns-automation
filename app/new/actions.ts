@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/auth";
 import { PLATFORMS, type Platform } from "@/lib/types";
+import { sendQueueEmail } from "@/lib/email";
 
 export interface TargetInput {
   platform: Platform;
@@ -55,10 +56,26 @@ async function insertOnePost(
   if (tErr) throw new Error(tErr.message);
 }
 
+// 인스타 타겟 개수 세고, 있으면 즉시 뷰어 링크 메일 발송
+async function notifyInstagram(inputs: PostInput[]) {
+  const igCount = inputs.reduce(
+    (n, i) => n + i.targets.filter((t) => t.platform === "instagram").length,
+    0
+  );
+  if (igCount > 0) {
+    try {
+      await sendQueueEmail(igCount);
+    } catch {
+      // 메일 실패해도 예약 자체는 성공 처리
+    }
+  }
+}
+
 // 한 개 게시물 생성
 export async function createPost(input: PostInput) {
   const { user, supabase } = await requireUser();
   await insertOnePost(supabase, user.id, input);
+  await notifyInstagram([input]);
   redirect("/");
 }
 
@@ -70,5 +87,6 @@ export async function createPosts(inputs: PostInput[]) {
   for (const input of valid) {
     await insertOnePost(supabase, user.id, input);
   }
+  await notifyInstagram(valid);
   redirect("/");
 }

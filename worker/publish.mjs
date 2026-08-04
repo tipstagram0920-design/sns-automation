@@ -325,10 +325,11 @@ async function main() {
     log.push({ id: s.id, reclaimed: true });
   }
 
-  // A) 발행 대상
+  // A) 발행 대상 — 인스타는 제외(이메일→/queue 수동 업로드). 유튜브/틱톡만 자동 발행.
   const { data: due } = await admin.from("post_targets")
     .select("*, posts(storage_path)")
-    .in("status", ["pending", "failed"]).lte("scheduled_at", nowIso).lt("attempts", MAX_ATTEMPTS)
+    .in("status", ["pending", "failed"]).neq("platform", "instagram")
+    .lte("scheduled_at", nowIso).lt("attempts", MAX_ATTEMPTS)
     .order("scheduled_at", { ascending: true }).limit(20);
   for (const t of due ?? []) log.push({ id: t.id, platform: t.platform, ...(await runOne(t)) });
 

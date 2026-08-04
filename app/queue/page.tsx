@@ -9,14 +9,13 @@ export const dynamic = "force-dynamic";
 export default async function QueuePage() {
   const { user, supabase } = await requireUser();
   const admin = createAdminClient();
-  const nowIso = new Date().toISOString();
 
+  // 아직 안 올린 인스타 영상 전부 (예약 시각 무관 — 수동 업로드라 언제든 올릴 수 있게)
   const { data: rows } = await supabase
     .from("post_targets")
     .select("id, caption, scheduled_at, posts(storage_path)")
     .eq("platform", "instagram")
     .in("status", ["pending", "scheduled", "uploading"])
-    .lte("scheduled_at", nowIso)
     .order("scheduled_at", { ascending: true });
 
   const items: QueueItem[] = [];

@@ -192,8 +192,8 @@ export default function BatchForm({
           <input style={input} value={firstComment} onChange={(e) => setFirstComment(e.target.value)} placeholder="예) 구독과 좋아요 부탁드려요! 🔔" />
         </Field>
         <div style={{ height: 10 }} />
-        <Field label="인스타 캡션 끝 고정 문구" right={<SaveBtn on={() => { localStorage.setItem("fixedIgTail", igTail.trim()); setSavedTail(igTail.trim()); }} saved={!!savedTail && savedTail === igTail} />}>
-          <input style={input} value={igTail} onChange={(e) => setIgTail(e.target.value)} placeholder="예) 더 많은 꿀팁은 프로필 링크에서! #꿀팁" />
+        <Field label="인스타 캡션 끝 고정 문구 (여러 줄 가능)" right={<SaveBtn on={() => { localStorage.setItem("fixedIgTail", igTail.trim()); setSavedTail(igTail.trim()); }} saved={!!savedTail && savedTail === igTail} />}>
+          <textarea style={{ ...input, minHeight: 90, resize: "vertical" }} value={igTail} onChange={(e) => setIgTail(e.target.value)} placeholder={"예)\n📌 더 많은 꿀팁은 프로필 링크에서 확인하세요!\n\n💬 궁금한 점은 댓글로 남겨주세요\n👉 팔로우하고 매일 꿀팁 받아보기"} />
         </Field>
       </section>
 
