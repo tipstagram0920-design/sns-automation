@@ -209,21 +209,23 @@ async function publishInstagram(target, videoUrl, conn, existingContainerId) {
 
 // ───────── 인스타: API 발행 대신 "메일 수동 발행" ─────────
 // 예약 시각에 영상 다운로드 링크 + 캡션을 내 메일로 보냄 → 폰에서 직접 업로드(음원 자유).
-async function emailInstagram(target, videoUrl) {
-  // 네이버 SMTP (savable card news 프로젝트와 동일 방식)
+async function emailInstagram(target) {
+  // 네이버 SMTP (savable card news 프로젝트와 동일 방식).
+  // 카드뉴스처럼: 메일은 "뷰어 페이지" 링크만 → 거기서 저장·복사·인스타·완료를 한 번에.
   const user = env("NAVER_EMAIL");
   const pass = env("NAVER_EMAIL_PASSWORD");
-  const to = process.env.NOTIFY_EMAIL || user; // 내 메일로 받기
+  const to = process.env.NOTIFY_EMAIL || user;
+  const appUrl = process.env.APP_URL || "https://sns-automation-rust.vercel.app";
+  const viewerUrl = `${appUrl}/queue`;
   const caption = target.caption || "";
   const shortForSubject = caption.replace(/\n/g, " ").slice(0, 40);
 
   const html = `
     <div style="font-family:sans-serif;max-width:520px;margin:0 auto;color:#1a1a1a">
-      <h2>📸 인스타 업로드 예약 도착</h2>
-      <p style="color:#666">폰에서 아래 영상을 저장하고, 캡션을 복사해 인스타에 올려주세요. (트렌딩 음원은 앱에서 자유롭게 추가)</p>
-      <p><a href="${videoUrl}" style="display:inline-block;background:#6366f1;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:600">⬇️ 영상 다운로드</a></p>
-      <p style="font-size:12px;color:#999">링크는 7일간 유효합니다.</p>
-      <h3>캡션 (복사해서 붙여넣기)</h3>
+      <h2>📸 인스타 업로드할 시간이에요</h2>
+      <p style="color:#666">아래 버튼을 누르면 영상 저장·캡션 복사·인스타 열기를 한 페이지에서 할 수 있어요. (트렌딩 음원은 인스타에서 자유롭게)</p>
+      <p><a href="${viewerUrl}" style="display:inline-block;background:#6366f1;color:#fff;padding:14px 24px;border-radius:12px;text-decoration:none;font-weight:700;font-size:16px">📱 인스타 올리러 가기</a></p>
+      <h3 style="margin-top:20px">캡션 미리보기</h3>
       <pre style="white-space:pre-wrap;background:#f4f4f5;padding:14px;border-radius:10px;font-family:inherit;font-size:14px">${escapeHtml(caption)}</pre>
     </div>`;
 
@@ -233,13 +235,14 @@ async function emailInstagram(target, videoUrl) {
     secure: true,
     auth: { user, pass },
   });
-  const info = await transport.sendMail({
+  await transport.sendMail({
     from: user,
     to,
-    subject: `📸 인스타 예약: ${shortForSubject || "영상"}`,
+    subject: `📸 인스타 업로드: ${shortForSubject || "영상"}`,
     html,
   });
-  return { externalPostId: `email:${info.messageId || "sent"}`, status: "published" };
+  // 발행완료가 아니라 "수동 업로드 대기(scheduled)" 로 — 뷰어에서 완료 누르면 published.
+  return { externalPostId: "emailed", status: "scheduled" };
 }
 
 function escapeHtml(s) {
@@ -272,12 +275,8 @@ async function runOne(target) {
   try {
     let result;
     if (target.platform === "instagram") {
-      // 메일 수동 발행: 계정 연결 불필요. 7일짜리 다운로드 링크로 메일 발송.
-      const { data: signed, error: se } = await admin.storage
-        .from("videos")
-        .createSignedUrl(target.posts.storage_path, 60 * 60 * 24 * 7, { download: true });
-      if (se || !signed) throw new Error("서명 URL 생성 실패");
-      result = await emailInstagram(target, signed.signedUrl);
+      // 메일 수동 발행: 계정 연결 불필요. 뷰어 링크 메일 발송 → status 'scheduled'.
+      result = await emailInstagram(target);
     } else {
       const { data: conn } = await admin
         .from("platform_connections").select("*")
@@ -337,6 +336,25 @@ async function main() {
   const { data: sched } = await admin.from("post_targets")
     .select("*, posts(storage_path)").eq("status", "scheduled").eq("platform", "youtube").lte("scheduled_at", nowIso).limit(20);
   for (const t of sched ?? []) log.push({ id: t.id, platform: "youtube-finalize", ...(await finalizeYouTube(t)) });
+
+  // C) 용량 확보: 모든 타겟이 published 이고 7일 지난 게시물 → 영상 파일 + 레코드 삭제
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: allPosts } = await admin
+    .from("posts")
+    .select("id, storage_path, post_targets(status, published_at)");
+  let cleaned = 0;
+  for (const p of allPosts ?? []) {
+    const ts = p.post_targets ?? [];
+    if (ts.length === 0) continue;
+    const allPublished = ts.every((t) => t.status === "published");
+    const allOld = ts.every((t) => t.published_at && t.published_at < weekAgo);
+    if (allPublished && allOld) {
+      await admin.storage.from("videos").remove([p.storage_path]);
+      await admin.from("posts").delete().eq("id", p.id); // cascade 로 targets 삭제
+      cleaned++;
+    }
+  }
+  if (cleaned) log.push({ cleaned_posts: cleaned });
 
   console.log(JSON.stringify({ ran_at: nowIso, processed: log.length, log }, null, 2));
 }

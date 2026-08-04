@@ -125,6 +125,11 @@ export default async function Dashboard() {
                   <div style={{ display: "grid", gap: 8 }}>
                     {targets.map((t) => {
                       const s = STATUS_STYLE[t.status];
+                      // 인스타 'scheduled' 는 "메일 발송됨 · 수동 업로드 대기"
+                      const label =
+                        t.platform === "instagram" && t.status === "scheduled"
+                          ? "📱 업로드 대기"
+                          : s.label;
                       return (
                         <div
                           key={t.id}
@@ -166,7 +171,7 @@ export default async function Dashboard() {
                               padding: "2px 10px",
                             }}
                           >
-                            {s.label}
+                            {label}
                           </span>
                           {t.status === "failed" && (
                             <form action={retryTarget}>

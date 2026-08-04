@@ -32,6 +32,9 @@ export default function Nav({ email }: { email?: string }) {
           <Link href="/new" style={{ color: "var(--muted)" }}>
             새 게시물
           </Link>
+          <Link href="/queue" style={{ color: "var(--muted)" }}>
+            인스타 업로드
+          </Link>
           <Link href="/connections" style={{ color: "var(--muted)" }}>
             계정 연결
           </Link>

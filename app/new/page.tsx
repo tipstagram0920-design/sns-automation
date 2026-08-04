@@ -1,7 +1,7 @@
 import Nav from "@/components/Nav";
 import { requireUser } from "@/lib/auth";
 import { type Platform } from "@/lib/types";
-import NewPostForm from "./NewPostForm";
+import BatchForm from "./BatchForm";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export default async function NewPostPage() {
           </div>
         )}
 
-        <NewPostForm userId={user.id} connected={Array.from(connected)} />
+        <BatchForm userId={user.id} connected={Array.from(connected)} />
       </main>
     </>
   );

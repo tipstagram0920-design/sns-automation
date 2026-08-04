@@ -24,6 +24,19 @@ export async function retryTarget(formData: FormData) {
   revalidatePath("/");
 }
 
+// 인스타 뷰어에서 "업로드 완료" 표시 → published 로
+export async function markUploaded(formData: FormData) {
+  const id = String(formData.get("id"));
+  const { user, supabase } = await requireUser();
+  await supabase
+    .from("post_targets")
+    .update({ status: "published", published_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .eq("platform", "instagram");
+  revalidatePath("/queue");
+}
+
 export async function deletePost(formData: FormData) {
   const postId = String(formData.get("post_id"));
   const { user, supabase } = await requireUser();

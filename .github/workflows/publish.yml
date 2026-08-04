@@ -35,4 +35,5 @@ jobs:
           # 인스타 메일 수동 발행 (네이버 SMTP)
           NAVER_EMAIL: ${{ secrets.NAVER_EMAIL }}
           NAVER_EMAIL_PASSWORD: ${{ secrets.NAVER_EMAIL_PASSWORD }}
+          APP_URL: https://sns-automation-rust.vercel.app
         run: node worker/publish.mjs
