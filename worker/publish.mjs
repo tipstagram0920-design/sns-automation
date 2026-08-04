@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import { Readable } from "node:stream";
 import { createClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
+import nodemailer from "nodemailer";
 
 const MAX_ATTEMPTS = 5;
 const META_GRAPH_VERSION = "v21.0";
@@ -209,8 +210,10 @@ async function publishInstagram(target, videoUrl, conn, existingContainerId) {
 // ───────── 인스타: API 발행 대신 "메일 수동 발행" ─────────
 // 예약 시각에 영상 다운로드 링크 + 캡션을 내 메일로 보냄 → 폰에서 직접 업로드(음원 자유).
 async function emailInstagram(target, videoUrl) {
-  const to = env("ALLOWED_EMAIL");
-  const apiKey = env("RESEND_API_KEY");
+  // 네이버 SMTP (savable card news 프로젝트와 동일 방식)
+  const user = env("NAVER_EMAIL");
+  const pass = env("NAVER_EMAIL_PASSWORD");
+  const to = process.env.NOTIFY_EMAIL || user; // 내 메일로 받기
   const caption = target.caption || "";
   const shortForSubject = caption.replace(/\n/g, " ").slice(0, 40);
 
@@ -224,19 +227,19 @@ async function emailInstagram(target, videoUrl) {
       <pre style="white-space:pre-wrap;background:#f4f4f5;padding:14px;border-radius:10px;font-family:inherit;font-size:14px">${escapeHtml(caption)}</pre>
     </div>`;
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from: process.env.RESEND_FROM || "onboarding@resend.dev",
-      to: [to],
-      subject: `📸 인스타 예약: ${shortForSubject || "영상"}`,
-      html,
-    }),
+  const transport = nodemailer.createTransport({
+    host: "smtp.naver.com",
+    port: 465,
+    secure: true,
+    auth: { user, pass },
   });
-  const d = await res.json();
-  if (!res.ok) throw new Error(d.message || d.name || `메일 발송 실패 (${res.status})`);
-  return { externalPostId: `email:${d.id || "sent"}`, status: "published" };
+  const info = await transport.sendMail({
+    from: user,
+    to,
+    subject: `📸 인스타 예약: ${shortForSubject || "영상"}`,
+    html,
+  });
+  return { externalPostId: `email:${info.messageId || "sent"}`, status: "published" };
 }
 
 function escapeHtml(s) {
