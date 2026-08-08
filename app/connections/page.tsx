@@ -9,6 +9,7 @@ const HELP: Record<Platform, string> = {
   youtube: "Google Cloud Console에서 OAuth 클라이언트 생성 후 내 채널로 로그인",
   instagram: "Meta 앱(개발 모드) + 내 IG 비즈니스 계정을 테스터로 등록",
   tiktok: "TikTok for Developers 앱 + 내 계정으로 로그인 (미심사는 비공개 발행)",
+  threads: "Meta 앱에 Threads 제품 추가 + 내 쓰레드 계정 연결 (대본을 글로 자동 게시)",
 };
 
 export default async function ConnectionsPage({

@@ -18,13 +18,14 @@ const SYSTEM = `너는 숏폼 영상 SNS 마케팅 카피라이터야. 사용자
   · 마지막은 저장/공유/팔로우를 부드럽게 유도.
   · ⚠️ 해시태그는 절대 넣지 마 — # 기호 자체를 쓰지 마라.
 - TikTok: caption(짧고 강렬하게, 트렌디하게, 해시태그 3~6개, #fyp 등 포함)
+- Threads: caption — 대본을 **쓰레드(Threads)용 텍스트 글**로 변환. 대화하듯 친근하고 솔직한 톤, 핵심만 간결하게 **480자 이내**. 첫 줄에 훅, 이모지는 약간만. 해시태그는 넣지 말거나 최대 1개.
 
 과장·거짓 정보는 넣지 말고, 원본에 없는 사실을 지어내지 마.`;
 
 const SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["youtube", "instagram", "tiktok"],
+  required: ["youtube", "instagram", "tiktok", "threads"],
   properties: {
     youtube: {
       type: "object",
@@ -43,6 +44,12 @@ const SCHEMA = {
       properties: { caption: { type: "string" } },
     },
     tiktok: {
+      type: "object",
+      additionalProperties: false,
+      required: ["caption"],
+      properties: { caption: { type: "string" } },
+    },
+    threads: {
       type: "object",
       additionalProperties: false,
       required: ["caption"],

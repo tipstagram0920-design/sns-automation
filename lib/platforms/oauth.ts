@@ -62,6 +62,17 @@ export function buildAuthUrl(platform: Platform, state: string): string {
       });
       return `https://www.tiktok.com/v2/auth/authorize/?${params}`;
     }
+
+    case "threads": {
+      const params = new URLSearchParams({
+        client_id: process.env.THREADS_APP_ID!,
+        redirect_uri: redirectUri(platform),
+        response_type: "code",
+        scope: "threads_basic,threads_content_publish",
+        state,
+      });
+      return `https://threads.net/oauth/authorize?${params}`;
+    }
   }
   // eslint 안전용
   throw new Error(`unknown platform ${ru}`);
@@ -79,7 +90,52 @@ export async function exchangeCode(
       return exchangeInstagram(code);
     case "tiktok":
       return exchangeTikTok(code);
+    case "threads":
+      return exchangeThreads(code);
   }
+}
+
+async function exchangeThreads(code: string): Promise<ExchangedToken> {
+  // (1) 단기 토큰
+  const shortRes = await fetch("https://graph.threads.net/oauth/access_token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.THREADS_APP_ID!,
+      client_secret: process.env.THREADS_APP_SECRET!,
+      grant_type: "authorization_code",
+      redirect_uri: redirectUri("threads"),
+      code,
+    }),
+  });
+  const short = await shortRes.json();
+  if (!shortRes.ok) throw new Error(short.error_message || JSON.stringify(short));
+  const userId = String(short.user_id ?? "");
+  const shortToken = short.access_token;
+
+  // (2) 장기 토큰(약 60일)
+  const longRes = await fetch(
+    `https://graph.threads.net/access_token?${new URLSearchParams({
+      grant_type: "th_exchange_token",
+      client_secret: process.env.THREADS_APP_SECRET!,
+      access_token: shortToken,
+    })}`
+  );
+  const long = await longRes.json();
+  const accessToken = long.access_token || shortToken;
+  const expiresAt = long.expires_in ? Date.now() + long.expires_in * 1000 : null;
+
+  let accountName: string | null = null;
+  try {
+    const me = await fetch(
+      `https://graph.threads.net/v1.0/me?fields=username&access_token=${accessToken}`
+    ).then((r) => r.json());
+    accountName = me.username ?? null;
+  } catch {
+    /* noop */
+  }
+
+  return { accessToken, refreshToken: null, expiresAt, externalAccountId: userId, accountName, meta: {} };
 }
 
 async function exchangeYouTube(code: string): Promise<ExchangedToken> {

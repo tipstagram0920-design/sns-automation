@@ -6,8 +6,10 @@
 
 -- 플랫폼 종류
 do $$ begin
-  create type platform as enum ('youtube', 'instagram', 'tiktok');
+  create type platform as enum ('youtube', 'instagram', 'tiktok', 'threads');
 exception when duplicate_object then null; end $$;
+-- 기존 DB 에 threads 값 추가 (이미 있으면 무시)
+alter type platform add value if not exists 'threads';
 
 -- 발행 상태
 do $$ begin

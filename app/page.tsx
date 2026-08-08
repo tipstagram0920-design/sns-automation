@@ -66,35 +66,6 @@ export default async function Dashboard() {
           </Link>
         </div>
 
-        {(() => {
-          const igWaiting = (posts ?? [])
-            .flatMap((p) => (p.post_targets ?? []) as Row[])
-            .filter(
-              (t) =>
-                t.platform === "instagram" &&
-                t.status !== "published" &&
-                t.status !== "failed"
-            ).length;
-          if (igWaiting === 0) return null;
-          return (
-            <Link
-              href="/queue"
-              style={{
-                display: "block",
-                border: "1px solid var(--accent)",
-                background: "var(--panel)",
-                color: "var(--text)",
-                borderRadius: 12,
-                padding: "12px 16px",
-                marginBottom: 16,
-                fontSize: 14,
-              }}
-            >
-              📱 <b>인스타 업로드 {igWaiting}개 대기 중</b> — 눌러서 영상 저장·캡션 복사·업로드 →
-            </Link>
-          );
-        })()}
-
         {!posts || posts.length === 0 ? (
           <div
             style={{
@@ -113,11 +84,7 @@ export default async function Dashboard() {
         ) : (
           <div style={{ display: "grid", gap: 14 }}>
             {posts.map((post) => {
-              // 인스타는 예약 발행 항목이 아님(메일→/queue 수동). 여기선 자동발행(유튜브 등)만.
-              const targets = ((post.post_targets ?? []) as Row[]).filter(
-                (t) => t.platform !== "instagram"
-              );
-              if (targets.length === 0) return null;
+              const targets = (post.post_targets ?? []) as Row[];
               return (
                 <div
                   key={post.id}

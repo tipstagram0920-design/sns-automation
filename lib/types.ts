@@ -1,4 +1,4 @@
-export type Platform = "youtube" | "instagram" | "tiktok";
+export type Platform = "youtube" | "instagram" | "tiktok" | "threads";
 
 export type TargetStatus =
   | "pending"
@@ -7,19 +7,24 @@ export type TargetStatus =
   | "published"
   | "failed";
 
-export const PLATFORMS: Platform[] = ["youtube", "instagram", "tiktok"];
+export const PLATFORMS: Platform[] = ["youtube", "instagram", "tiktok", "threads"];
 
 export const PLATFORM_LABEL: Record<Platform, string> = {
   youtube: "YouTube Shorts",
   instagram: "Instagram Reels",
   tiktok: "TikTok",
+  threads: "Threads",
 };
 
 export const PLATFORM_EMOJI: Record<Platform, string> = {
   youtube: "▶️",
   instagram: "📸",
   tiktok: "🎵",
+  threads: "🧵",
 };
+
+// 쓰레드는 텍스트 글. 나머지는 영상.
+export const TEXT_PLATFORMS: Platform[] = ["threads"];
 
 export interface PlatformConnection {
   id: string;

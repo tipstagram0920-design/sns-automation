@@ -17,10 +17,12 @@ interface Card {
   aiError: string;
   ytOn: boolean;
   igOn: boolean;
+  threadsOn: boolean;
   title: string; // 유튜브 제목
   ytCaption: string; // 유튜브 설명
   tags: string; // 유튜브 태그
   igCaption: string; // 인스타 캡션
+  threadsCaption: string; // 쓰레드 텍스트
   scheduledAt: string;
 }
 
@@ -42,10 +44,12 @@ function newCard(offsetMin: number): Card {
     aiError: "",
     ytOn: true,
     igOn: true,
+    threadsOn: true,
     title: "",
     ytCaption: "",
     tags: "",
     igCaption: "",
+    threadsCaption: "",
     scheduledAt: defaultLocal(offsetMin),
   };
 }
@@ -59,6 +63,8 @@ export default function BatchForm({
 }) {
   const supabase = useMemo(() => createClient(), []);
   const ytConnected = connected.includes("youtube");
+  const igConnected = connected.includes("instagram");
+  const threadsConnected = connected.includes("threads");
 
   const [cards, setCards] = useState<Card[]>([newCard(60)]);
   const [busy, setBusy] = useState(false);
@@ -106,7 +112,8 @@ export default function BatchForm({
     if (!card.base.trim()) return patch(card.key, { aiError: "원본 대본을 입력하세요." });
     const platforms: Platform[] = [];
     if (card.ytOn && ytConnected) platforms.push("youtube");
-    if (card.igOn) platforms.push("instagram");
+    if (card.igOn && igConnected) platforms.push("instagram");
+    if (card.threadsOn && threadsConnected) platforms.push("threads");
     if (platforms.length === 0) return patch(card.key, { aiError: "플랫폼을 켜세요." });
 
     patch(card.key, { aiBusy: true, aiError: "" });
@@ -127,6 +134,9 @@ export default function BatchForm({
       if (platforms.includes("instagram") && data.instagram) {
         p.igCaption = data.instagram.caption ?? card.igCaption;
       }
+      if (platforms.includes("threads") && data.threads) {
+        p.threadsCaption = data.threads.caption ?? card.threadsCaption;
+      }
       patch(card.key, p);
     } catch (e) {
       patch(card.key, { aiError: e instanceof Error ? e.message : "생성 실패" });
@@ -137,7 +147,7 @@ export default function BatchForm({
 
   async function submit() {
     setError("");
-    const active = cards.filter((c) => c.file && (c.ytOn || c.igOn));
+    const active = cards.filter((c) => c.file && (c.ytOn || c.igOn || c.threadsOn));
     if (active.length === 0) return setError("영상을 하나 이상 올리고 플랫폼을 켜세요.");
 
     setBusy(true);
@@ -166,9 +176,22 @@ export default function BatchForm({
             scheduledAt: iso,
           });
         }
-        if (c.igOn) {
+        if (c.igOn && igConnected) {
           const cap = igTail.trim() ? `${c.igCaption}\n\n${igTail.trim()}`.trim() : c.igCaption;
-          targets.push({ platform: "instagram", caption: cap, scheduledAt: iso });
+          targets.push({
+            platform: "instagram",
+            caption: cap,
+            firstComment: firstComment.trim() || undefined,
+            scheduledAt: iso,
+          });
+        }
+        if (c.threadsOn && threadsConnected) {
+          targets.push({
+            platform: "threads",
+            caption: c.threadsCaption,
+            firstComment: firstComment.trim() || undefined,
+            scheduledAt: iso,
+          });
         }
         posts.push({ storagePath: path, durationSec: c.duration, targets });
       }
@@ -188,7 +211,7 @@ export default function BatchForm({
       {/* 전체 공통 고정 문구 */}
       <section style={panel}>
         <h2 style={h2}>공통 고정 문구 (모든 영상에 적용)</h2>
-        <Field label="유튜브 첫 댓글 (고정)" right={<SaveBtn on={() => { localStorage.setItem("fixedFirstComment", firstComment.trim()); setSavedFC(firstComment.trim()); }} saved={!!savedFC && savedFC === firstComment} />}>
+        <Field label="자동 고정 댓글 (유튜브·인스타·쓰레드 첫 댓글)" right={<SaveBtn on={() => { localStorage.setItem("fixedFirstComment", firstComment.trim()); setSavedFC(firstComment.trim()); }} saved={!!savedFC && savedFC === firstComment} />}>
           <input style={input} value={firstComment} onChange={(e) => setFirstComment(e.target.value)} placeholder="예) 구독과 좋아요 부탁드려요! 🔔" />
         </Field>
         <div style={{ height: 10 }} />
@@ -251,11 +274,18 @@ export default function BatchForm({
               </div>
             )}
             <label style={toggle}>
-              <input type="checkbox" checked={c.igOn} onChange={(e) => patch(c.key, { igOn: e.target.checked })} />
-              📸 Instagram · 메일로 받아 폰에서 업로드
+              <input type="checkbox" checked={c.igOn} disabled={!igConnected} onChange={(e) => patch(c.key, { igOn: e.target.checked })} />
+              📸 Instagram Reels {igConnected ? "· 자동 발행" : "· (연결 필요)"}
             </label>
-            {c.igOn && (
-              <textarea style={{ ...input, minHeight: 56, resize: "vertical", marginLeft: 6 }} value={c.igCaption} onChange={(e) => patch(c.key, { igCaption: e.target.value })} placeholder="인스타 캡션 (AI가 채움, 해시태그 없이)" />
+            {c.igOn && igConnected && (
+              <textarea style={{ ...input, minHeight: 56, resize: "vertical", marginLeft: 6 }} value={c.igCaption} onChange={(e) => patch(c.key, { igCaption: e.target.value })} placeholder="인스타 캡션 (AI가 채움, 1000자·문단·이모지)" />
+            )}
+            <label style={toggle}>
+              <input type="checkbox" checked={c.threadsOn} disabled={!threadsConnected} onChange={(e) => patch(c.key, { threadsOn: e.target.checked })} />
+              🧵 Threads {threadsConnected ? "· 대본을 글로 자동 게시" : "· (연결 필요)"}
+            </label>
+            {c.threadsOn && threadsConnected && (
+              <textarea style={{ ...input, minHeight: 56, resize: "vertical", marginLeft: 6 }} value={c.threadsCaption} onChange={(e) => patch(c.key, { threadsCaption: e.target.value })} placeholder="쓰레드 글 (AI가 대본을 쓰레드용으로 변환)" />
             )}
           </div>
 

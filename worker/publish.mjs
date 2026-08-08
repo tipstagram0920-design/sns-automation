@@ -264,6 +264,30 @@ async function publishTikTok(target, videoUrl, conn) {
   return { externalPostId: d.data?.publish_id, status: "published" };
 }
 
+// ───────── 쓰레드 (텍스트 글 + 첫 댓글) ─────────
+async function publishThreads(target, conn) {
+  const uid = conn.externalAccountId;
+  const token = conn.accessToken;
+  if (!uid) throw new Error("쓰레드 사용자 ID 없음");
+  const base = "https://graph.threads.net/v1.0";
+  const jpost = (body) =>
+    fetch(`${base}/${uid}/threads`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, access_token: token }) }).then((r) => r.json());
+  const jpub = (creationId) =>
+    fetch(`${base}/${uid}/threads_publish`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ creation_id: creationId, access_token: token }) }).then((r) => r.json());
+
+  const c = await jpost({ media_type: "TEXT", text: (target.caption || "").slice(0, 500) });
+  if (!c.id) throw new Error(c.error?.message || "쓰레드 컨테이너 생성 실패");
+  const p = await jpub(c.id);
+  if (!p.id) throw new Error(p.error?.message || "쓰레드 게시 실패");
+
+  // 첫 댓글(자기 글에 답글)
+  if (target.first_comment) {
+    const rc = await jpost({ media_type: "TEXT", text: target.first_comment.slice(0, 500), reply_to_id: p.id });
+    if (rc.id) await jpub(rc.id).catch(() => {});
+  }
+  return { externalPostId: p.id, status: "published" };
+}
+
 // ───────── 하나 처리(락) ─────────
 async function runOne(target) {
   const { data: locked } = await admin
@@ -273,22 +297,24 @@ async function runOne(target) {
   if (!locked || locked.length === 0) return { skipped: "locked" };
 
   try {
+    const { data: conn } = await admin
+      .from("platform_connections").select("*")
+      .eq("user_id", target.user_id).eq("platform", target.platform).single();
+    if (!conn) throw new Error(`${target.platform} 계정 미연결`);
+    const live = await getLiveConnection(conn);
+
     let result;
-    if (target.platform === "instagram") {
-      // 메일 수동 발행: 계정 연결 불필요. 뷰어 링크 메일 발송 → status 'scheduled'.
-      result = await emailInstagram(target);
+    if (target.platform === "threads") {
+      // 쓰레드: 텍스트 글(영상 불필요)
+      result = await publishThreads(target, live);
     } else {
-      const { data: conn } = await admin
-        .from("platform_connections").select("*")
-        .eq("user_id", target.user_id).eq("platform", target.platform).single();
-      if (!conn) throw new Error(`${target.platform} 계정 미연결`);
-      const live = await getLiveConnection(conn);
-      const { data: signed, error: se } = await admin.storage.from("videos").createSignedUrl(target.posts.storage_path, 60 * 60);
+      const { data: signed, error: se } = await admin.storage
+        .from("videos").createSignedUrl(target.posts.storage_path, 60 * 60);
       if (se || !signed) throw new Error("서명 URL 생성 실패");
       const videoUrl = signed.signedUrl;
-      result = target.platform === "youtube"
-        ? await publishYouTube(target, videoUrl, live)
-        : await publishTikTok(target, videoUrl, live);
+      if (target.platform === "youtube") result = await publishYouTube(target, videoUrl, live);
+      else if (target.platform === "instagram") result = await publishInstagram(target, videoUrl, live, target.ig_container_id);
+      else result = await publishTikTok(target, videoUrl, live);
     }
 
     await admin.from("post_targets").update({
@@ -325,10 +351,10 @@ async function main() {
     log.push({ id: s.id, reclaimed: true });
   }
 
-  // A) 발행 대상 — 인스타는 제외(이메일→/queue 수동 업로드). 유튜브/틱톡만 자동 발행.
+  // A) 발행 대상 — 모든 플랫폼 자동 발행(유튜브/인스타/틱톡/쓰레드)
   const { data: due } = await admin.from("post_targets")
     .select("*, posts(storage_path)")
-    .in("status", ["pending", "failed"]).neq("platform", "instagram")
+    .in("status", ["pending", "failed"])
     .lte("scheduled_at", nowIso).lt("attempts", MAX_ATTEMPTS)
     .order("scheduled_at", { ascending: true }).limit(20);
   for (const t of due ?? []) log.push({ id: t.id, platform: t.platform, ...(await runOne(t)) });
